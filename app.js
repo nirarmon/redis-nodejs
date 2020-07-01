@@ -163,7 +163,7 @@ function eventTriggered(err, key) {
     });
 }
 
-app.listen(port, function () {
+app.listen(port, function  () {
     var now = Date.now();
 
     //"check later" subscriber will keep checking if there is a message with the current timestamp (+500 milli)
