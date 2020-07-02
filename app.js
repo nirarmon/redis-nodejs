@@ -7,19 +7,30 @@ const Redlock = require('redlock');
 const Scheduler = require('redis-scheduler');
 const config = require('config');
 
+
 const _notificationQueue = 'notification'
 const _messageToSendQueue = 'messages_to_send'
 const _checkLaterQueue = 'check_later_queue'
 const _redisPort = config.get('redis.port');
 const _redisHost = config.get('redis.host');
 const _key = 'messages';
+const jsonParser = bodyParser.json()
+
 
 // init redis connections
-const _redisClient = redis.createClient(_redisPort, _redisHost);
+const _redisClient = redis.createClient(_redisPort, _redisHost,function(err){
+    next(err);
+});
 const _locker = new Redlock([_redisClient]);
-const _scheduler = new Scheduler({ host: _redisHost, port: _redisPort });
-const _checkLaterSubscriber = redis.createClient(_redisPort, _redisHost);
-const _notificationsSubscriber = redis.createClient(_redisPort, _redisHost);
+const _scheduler = new Scheduler({ host: _redisHost, port: _redisPort },function(err){
+    next(err);
+});
+const _checkLaterSubscriber = redis.createClient(_redisPort, _redisHost,function(err){
+    next(err);
+});
+const _notificationsSubscriber = redis.createClient(_redisPort, _redisHost,function(err){
+    next(err);
+});
 
 _locker.on('clientError', function (err) {
     console.error('A redis error has occurred:', err);
@@ -62,8 +73,6 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 app.use(bodyParser.raw());
 
-var jsonParser = bodyParser.json()
-
 /**
  * @swagger
  * /api/v1/echoAtTime:
@@ -95,35 +104,29 @@ var jsonParser = bodyParser.json()
  *       400:
  *         description: Message time stamp is older than the current the time
  */
-app.post('/api/v1/echoAtTime', jsonParser, function (req, res) {
+app.post('/api/v1/echoAtTime', jsonParser, function (req, res,next) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
         res.status(400);
-        res.end();
+        next("Date is in the past")
     } else {
         try {
             var uuid = uuidv1();
             var json = JSON.stringify({ message: req.body.message, uuid: uuid, time:  res.body.date });
             _redisClient.zadd(_key, requestedDate, json, function (err) {
                 if (err) {
-                    console.log(err);
-                    res.status(400);
-                    res.end();
+                    next("Cannot Inset Value into Redis");
                 }
             });
             //add expersion event 
             _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
                 if (err) {
-                    console.log(err);
-                    res.status(400);
-                    res.end();
+                    next("Error Adding Schedule Event");
                 }
             });
         } catch (err) {
-            console.log(err);
-            res.status(400);
-            res.end();
+            next(err.message);
         }
         res.status(201).send();
         res.end();
@@ -162,27 +165,23 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res) {
  *       400:
  *         description: Message time stamp is older than the current the time
  */
-app.post('/api/v2/echoAtTime', jsonParser, function (req, res) {
+app.post('/api/v2/echoAtTime', jsonParser, function (req, res,next) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
         res.status(400);
-        res.end();
+        next("Date is in the past")
     } else {
         try {
             var uuid = uuidv1();
             var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: req.body.date });
             _redisClient.zadd(_key, requestedDate, json, function (err) {
                 if (err) {
-                    console.log(err);
-                    res.status(400);
-                    res.end();
+                    next("Cannot Inset Value into Redis");
                 }
             });
         } catch (err) {
-            console.log(err);
-            res.status(400);
-            res.end();
+            next(err.message);
         }
         res.status(201).send();
         res.end();
@@ -285,3 +284,4 @@ function publishMessage(queueName, msg) {
     publisher.publish(queueName, msg);
     publisher.quit();
 }
+
