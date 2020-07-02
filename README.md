@@ -48,18 +48,27 @@ To ensure only one subscriber prints the message I used a lock on the message UU
 
 ### Installation
 
-For events driven the keyspace event notification should be set as follow on Redis startup (or added to redis.config)
+For events driven the *keyspace event notification* should be set as follow on Redis startup (or added to redis.config)
 please note: keyspace event notification has some overhead on Redis so it is disabled as default
 
     ./redis-server --notify-keyspace-events Ex
-    
-For this I assumed that Redis is already running (locally, Docker, remote) - please configure Redis host and port in the **local.json** file 
+or
+
+    redis-cli config set notify-keyspace-events Ex
+or
+
+Add line  **_notify-keyspace-events Ex in_** _redis.conf_
+Example: 
+
+    docker run --name my-redis-container -v /data/myredis/redis.conf:/usr/local/etc/redis/redis.conf -d redis 
+
+I assumed that Redis is already running (locally, Docker, remote) - please configure Redis host and port in the **local.json** file 
 
     {
-    	"redis":{
-    		    "host":"<Your Redis Host>",
-    		    "port":<Your Redis Port>
-    	}
+        "redis":{
+	        	 "host":"<Your Redis Host>",
+        		 "port":<Your Redis Port>
+        }
     }
 
 Set the configuration environment
@@ -94,3 +103,4 @@ you can see the Service's API calls here:
  - [Publish/subscribe](https://redislabs.com/ebook/part-2-core-concepts/chapter-3-commands-in-redis/3-6-publishsubscribe/)
  - [Sorted Sets](https://redislabs.com/ebook/part-2-core-concepts/chapter-3-commands-in-redis/3-5-sorted-sets/)
  - [Lists](https://redislabs.com/ebook/part-2-core-concepts/chapter-3-commands-in-redis/3-2-lists/)
+
