@@ -21,7 +21,9 @@ const jsonParser = bodyParser.json()
 const _redisClient = redis.createClient(_redisPort, _redisHost,function(err){
     next(err);
 });
-const _locker = new Redlock([_redisClient]);
+const _locker = new Redlock([_redisClient],function(err){
+    next(err);
+});
 const _scheduler = new Scheduler({ host: _redisHost, port: _redisPort },function(err){
     next(err);
 });
@@ -78,9 +80,9 @@ app.use(bodyParser.raw());
  * /api/v1/echoAtTime:
  *   post:
  *     summary: Add Message
- *     description: The message will be printed at the given time
- *                  this api call will use events to print the messages  
- *                  please note - messages must be in future time
+ *     description: The message will be printed at the given time. 
+ *                  This api call will use events to print the messages</br>  
+ *                  Please note - messages must be in future time
  *     tags:
  *       - Echo at Time - V1
  *     requestBody:
@@ -139,8 +141,8 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res,next) {
  * /api/v2/echoAtTime:
  *   post:
  *     summary: Add Message
- *     description: The message will be printed at the given time
- *                  this api call will use pulling and queues
+ *     description: The message will be printed at the given time. 
+ *                  This api call will use pulling and queues</br>
  *                  please note - messages must be in future time
  *     tags:
  *       - Echo at Time - V2
