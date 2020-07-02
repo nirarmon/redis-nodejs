@@ -6,7 +6,9 @@ const redis = require("redis");
 const Redlock = require('redlock');
 const Scheduler = require('redis-scheduler');
 const _key = 'messages';
-
+const config = require('config');
+const _redisPort = config.get('redis.port');
+const _redisHost = config.get('redis.host');
 
 const app = express()
 const port = 3000
@@ -169,7 +171,7 @@ app.listen(port, function  () {
     //"check later" subscriber will keep checking if there is a message with the current timestamp (+500 milli)
     // if there are messages to print it will try to lock them, remove them from the ZLIST, add them tho the worker queue and publish an event
     // for the worker to print the message
-    var CheckLaterSubscriber = redis.createClient(7001, "10.30.22.42");
+    var CheckLaterSubscriber = redis.createClient(_redisPort, _redisHost);
     CheckLaterSubscriber.subscribe('check_later');
 
     CheckLaterSubscriber.on('message', function (channel, message) {
@@ -198,7 +200,7 @@ app.listen(port, function  () {
     });
 
     //notifcation subscriber will get notification to pop a message from the "messages_to_send" queue , will try to lock it and print the message to the console
-    var notificationsSubscriber = redis.createClient(7001, "10.30.22.42");
+    var notificationsSubscriber = redis.createClient(_redisPort, _redisHost);
     notificationsSubscriber.subscribe('notification');
 
     notificationsSubscriber.on('message', function (channel, message) {
@@ -249,16 +251,16 @@ app.listen(port, function  () {
 
 // helper function to publish a message and close the connection
 function publishMessage(queueName, msg) {
-    var publisher = redis.createClient(7001, "10.30.22.42");
+    var publisher = redis.createClient(_redisPort, _redisHost);
     publisher.publish(queueName, msg);
     publisher.quit();
 
 }
 
 function redisConnection(redisFunction) {
-    var client = redis.createClient(7001, "10.30.22.42");
+    var client = redis.createClient(_redisPort, _redisHost);
     var redlock = new Redlock([client]);
-    var scheduler = new Scheduler({ host: "10.30.22.42", port: 7001 });
+    var scheduler = new Scheduler({ host: _redisHost, port: _redisPort });
     redlock.on('clientError', function (err) {
         console.error('A redis error has occurred:', err);
     });
