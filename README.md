@@ -55,7 +55,7 @@ please note: keyspace event notification has some overhead on Redis so it is dis
 or from redis cli
 
     redis-cli config set notify-keyspace-events Ex
-or add line  **_notify-keyspace-events Ex in_** _redis.conf_
+or add line  **_notify-keyspace-events Ex in_** _redis.conf_  
 Example of docker use with custom configuration file: 
 
     docker run --name my-redis-container -v /data/myredis/redis.conf:/usr/local/etc/redis/redis.conf -d redis 
