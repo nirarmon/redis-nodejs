@@ -105,8 +105,8 @@ example of use:
       -H 'content-type: application/json' \
       -d '{"message":"Some Message","date":"07-02-2020 16:40:00"}'
 
-both API calls will not allow messages in past time
-After running the service you can see the Service's API calls here:
+both API calls will not allow messages in past time  
+Once running the service you can see the Service's API calls here:
 [http://localhost:3000/doc](http://localhost:3000/doc)
 
 ### Known Issues (AKA things I should've done better)

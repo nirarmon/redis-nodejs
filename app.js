@@ -18,19 +18,19 @@ const jsonParser = bodyParser.json()
 
 
 // init redis connections
-const _redisClient = redis.createClient(_redisPort, _redisHost,function(err){
+const _redisClient = redis.createClient(_redisPort, _redisHost, function (err) {
     next(err);
 });
-const _locker = new Redlock([_redisClient],function(err){
+const _locker = new Redlock([_redisClient], function (err) {
     next(err);
 });
-const _scheduler = new Scheduler({ host: _redisHost, port: _redisPort },function(err){
+const _scheduler = new Scheduler({ host: _redisHost, port: _redisPort }, function (err) {
     next(err);
 });
-const _checkLaterSubscriber = redis.createClient(_redisPort, _redisHost,function(err){
+const _checkLaterSubscriber = redis.createClient(_redisPort, _redisHost, function (err) {
     next(err);
 });
-const _notificationsSubscriber = redis.createClient(_redisPort, _redisHost,function(err){
+const _notificationsSubscriber = redis.createClient(_redisPort, _redisHost, function (err) {
     next(err);
 });
 
@@ -106,7 +106,7 @@ app.use(bodyParser.raw());
  *       400:
  *         description: Message time stamp is older than the current the time
  */
-app.post('/api/v1/echoAtTime', jsonParser, function (req, res,next) {
+app.post('/api/v1/echoAtTime', jsonParser, function (req, res, next) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
@@ -115,17 +115,19 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res,next) {
     } else {
         try {
             var uuid = uuidv1();
-            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time:  res.body.date });
+            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: req.body.date });
             _redisClient.zadd(_key, requestedDate, json, function (err) {
                 if (err) {
                     next("Cannot Inset Value into Redis");
                 }
-            });
-            //add expersion event 
-            _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
-                if (err) {
-                    next("Error Adding Schedule Event");
-                }
+
+                //add expersion event 
+                _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
+                    if (err) {
+                        next("Error Adding Schedule Event");
+                    }
+                });
+                console.log("Message "+req.body.message+" added and will be sent at " +req.body.date)
             });
         } catch (err) {
             next(err.message);
@@ -167,7 +169,7 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res,next) {
  *       400:
  *         description: Message time stamp is older than the current the time
  */
-app.post('/api/v2/echoAtTime', jsonParser, function (req, res,next) {
+app.post('/api/v2/echoAtTime', jsonParser, function (req, res, next) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
@@ -181,6 +183,7 @@ app.post('/api/v2/echoAtTime', jsonParser, function (req, res,next) {
                 if (err) {
                     next("Cannot Inset Value into Redis");
                 }
+                console.log("Message "+req.body.message+" added and will be sent at " +req.body.date)
             });
         } catch (err) {
             next(err.message);
@@ -195,7 +198,7 @@ function eventTriggered(err, key) {
 
     // lock the message in case other instance is warming up
     _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-        console.log(res.message+" "+res.time);
+        console.log("Message received: "+res.message + " " + res.time);
         _redisClient.zrem(_key, key);
         return lock.unlock()
             .catch(function (err) {
@@ -205,6 +208,7 @@ function eventTriggered(err, key) {
 }
 
 app.listen(port, function () {
+    console.log("Server is Starting...")
     var now = Date.now();
 
     //"check later" subscriber will keep checking if there is a message with the current timestamp (+500 milli)
@@ -245,7 +249,7 @@ app.listen(port, function () {
                 var res = JSON.parse(reply);
                 //try to accuire lock
                 _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                    console.log(res.message+" "+res.time);
+                    console.log("Message received: "+res.message + " " + res.time);
                     return lock.unlock()
                         .catch(function (err) {
                         });
@@ -256,20 +260,20 @@ app.listen(port, function () {
 
     // init the first iteration 
     publishMessage(_checkLaterQueue, 1);
-
     // check if there are messages in the queue that were not printed on time because the server was down
     // get all messages that are still availble in the queue that should've been sent by now
     // when all goes well this query should return 0 results as 
     // 1. there are messages in the queue but they will be sent in later time
     // 2. other instances already proceesed the messages on time
     _redisClient.zrangebyscore(_key, -1, now, 'withscores', function (err, members) {
+        console.log("Searching for Dated Messages...")
         var chunck = _.chunk(members, 2);
         chunck.forEach(element => {
             var res = JSON.parse(element[0]);
             // lock the message by uuid so no other service will be able to use it
             // if the lock can't be acquired it means that other instance already got it and will print it
             _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                console.log(res.message+" "+res.time);
+                console.log("Message: "+res.message + " was supposed to be sent at " + res.time);
                 _redisClient.zrem(_key, element[0]);
                 return lock.unlock()
                     .catch(function (err) {
@@ -278,6 +282,7 @@ app.listen(port, function () {
             });
         });
     });
+    console.log("Server is Up...")
 });
 
 // helper function to publish a message and close the connection
