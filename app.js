@@ -101,13 +101,17 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res) {
     if (requestedDate < Date.now()) {
         res.status(400).send();
     } else {
-        var uuid = uuidv1();
-        var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
-        _redisClient.zadd(_key, requestedDate, json);
-        //add expersion event 
-        _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
-        });
-        res.status(201).send('Event was added for, ' + requestedDate);
+        try {
+            var uuid = uuidv1();
+            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
+            _redisClient.zadd(_key, requestedDate, json);
+            //add expersion event 
+            _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
+            });
+            res.status(201).send('Event was added for, ' + requestedDate);
+        } catch (error) {
+            res.status(400).send(error);
+        }
     }
 });
 
@@ -149,12 +153,15 @@ app.post('/api/v2/echoAtTime', jsonParser, function (req, res) {
     if (requestedDate < Date.now()) {
         res.status(400).send();
     } else {
-
-        var uuid = uuidv1();
-        var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
-        _redisClient.zadd(_key, requestedDate, json);
-        res.status(201).send('Event was added for, ' + requestedDate)
-    }
+        try {
+            var uuid = uuidv1();
+            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
+            _redisClient.zadd(_key, requestedDate, json);
+            res.status(201).send('Event was added for, ' + requestedDate)
+        } catch (error) {
+            res.status(400).send(error);
+        }
+}
 });
 
 function eventTriggered(err, key) {
