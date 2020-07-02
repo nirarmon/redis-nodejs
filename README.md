@@ -73,7 +73,7 @@ you can see the Service's API calls here:
 ### Known Issues (AKA things I should've done better)
 
  - The services is based on "Spaghetti Code" design pattern, i should've module the folders and files better
- - Redis connections- I might have handle Redis connection better, I used a single function to connect Redis each time it was needed, but I'm not sure I closed all the connections properly 
+ - Redis connections- I might have handle Redis connection better, I used a single function to connect to Redis each time it was needed, but I'm not sure I closed all the connections properly 
  - **TESTING!** 
 ### Blogs and Repositories 
  - [Redis keyspace event notification](http://blog.codezuki.com/blog/2013/07/07/redis-queue)
