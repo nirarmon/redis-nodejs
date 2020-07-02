@@ -3,8 +3,6 @@
 
 [![N|Solid](https://cldup.com/dTxpPi9lDf.thumb.png)](https://nodesource.com/products/nsolid)
 
-[![Build Status](https://travis-ci.org/joemccann/dillinger.svg?branch=master)](https://travis-ci.org/joemccann/dillinger)
-
 Delay Service allows you to send a message in a given time in the future.
 Don't worry, even if the service is down it will still print your messages when going back online in the same oreder as they were inserted 
 
