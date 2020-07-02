@@ -88,7 +88,7 @@ node app
 
 ### Documentation
 you can see the Service's API calls here:
-[http://localhost:3000/doc](http://localhost:3000/doc)
+[http://localhost:3000/docs](http://localhost:3000/docs)
 
 ### Known Issues (AKA things I should've done better)
 
