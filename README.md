@@ -1,4 +1,5 @@
 
+
 # Delay Service
 
 [![N|Solid](https://cldup.com/dTxpPi9lDf.thumb.png)](https://nodesource.com/products/nsolid)
@@ -51,14 +52,18 @@ For events driven the keyspace event notification should be set as follow on Red
 please note: keyspace event notification has some overhead on Redis so it is disabled as default
 
     ./redis-server --notify-keyspace-events Ex
+    
+For this I assumed that Redis is already running (locally, Docker, remote) - please configure Redis host and port in the **local.json** file 
 
+  
 
-Install the dependencies and devDependencies and start the server.
+     {
+    	    "redis":{
+    		    "host":"<Your Redis Host>",
+    		    "port":<Your Redis Port>
+    	    }
+    	}
 
-```sh
-npm install -d
-node app
-```
 Set the configuration environment
 
      export NODE_ENV=local
@@ -66,6 +71,14 @@ Set the configuration environment
 #### Windows:
 
     setx NODE_ENV local
+    
+Install the dependencies and devDependencies and start the server.
+
+```sh
+npm install -d
+node app
+```
+
 ### Documentation
 you can see the Service's API calls here:
 [http://localhost:3000/doc](http://localhost:3000/doc)
@@ -73,7 +86,7 @@ you can see the Service's API calls here:
 ### Known Issues (AKA things I should've done better)
 
  - The services is based on "Spaghetti Code" design pattern, i should've module the folders and files better
- - Redis connections- I might have handle Redis connection better, I used a single function to connect Redis each time it was needed, but I'm not sure I closed all the connections properly 
+ - Redis connections- I might have handle Redis connection better, I used a single function to connect to Redis each time it was needed, but I'm not sure I closed all the connections properly 
  - **TESTING!** 
 ### Blogs and Repositories 
  - [Redis keyspace event notification](http://blog.codezuki.com/blog/2013/07/07/redis-queue)
