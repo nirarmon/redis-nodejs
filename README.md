@@ -55,14 +55,12 @@ please note: keyspace event notification has some overhead on Redis so it is dis
     
 For this I assumed that Redis is already running (locally, Docker, remote) - please configure Redis host and port in the **local.json** file 
 
-  
-
-     {
-    	    "redis":{
+    {
+    	"redis":{
     		    "host":"<Your Redis Host>",
     		    "port":<Your Redis Port>
-    	    }
     	}
+    }
 
 Set the configuration environment
 
