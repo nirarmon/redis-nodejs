@@ -5,13 +5,25 @@ const _ = require('underscore');
 const redis = require("redis");
 const Redlock = require('redlock');
 const Scheduler = require('redis-scheduler');
-const _key = 'messages';
+const config = require('config');
+
 const _notificationQueue = 'notification'
 const _messageToSendQueue = 'messages_to_send'
 const _checkLaterQueue = 'check_later_queue'
-const config = require('config');
 const _redisPort = config.get('redis.port');
 const _redisHost = config.get('redis.host');
+const _key = 'messages';
+
+// init redis connections
+const _redisClient = redis.createClient(_redisPort, _redisHost);
+const _locker = new Redlock([_redisClient]);
+const _scheduler = new Scheduler({ host: _redisHost, port: _redisPort });
+const _checkLaterSubscriber = redis.createClient(_redisPort, _redisHost);
+const _notificationsSubscriber = redis.createClient(_redisPort, _redisHost);
+
+_locker.on('clientError', function (err) {
+    console.error('A redis error has occurred:', err);
+});
 
 const app = express()
 const port = 3000
@@ -89,19 +101,15 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res) {
     if (requestedDate < Date.now()) {
         res.status(400).send();
     } else {
-        redisConnection((client, locker, scheduler) => {
-            var uuid = uuidv1();
-            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
-            client.zadd(_key, requestedDate, json);
-            //add expersion event 
-            scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
-            });
-            client.quit();
-            res.status(201).send('Event was added for, ' + requestedDate)
+        var uuid = uuidv1();
+        var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
+        _redisClient.zadd(_key, requestedDate, json);
+        //add expersion event 
+        _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
         });
+        res.status(201).send('Event was added for, ' + requestedDate);
     }
 });
-
 
 
 /**
@@ -139,33 +147,27 @@ app.post('/api/v2/echoAtTime', jsonParser, function (req, res) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
-        res.status(400).send
+        res.status(400).send();
     } else {
-        redisConnection((client, locker, scheduler) => {
-            var uuid = uuidv1();
-            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
-            client.zadd(_key, requestedDate, json);
-            client.quit();
-            res.status(201).send('Event was added for, ' + requestedDate)
-        });
 
-        res.status(200).send();
+        var uuid = uuidv1();
+        var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
+        _redisClient.zadd(_key, requestedDate, json);
+        res.status(201).send('Event was added for, ' + requestedDate)
     }
 });
 
 function eventTriggered(err, key) {
     var res = JSON.parse(key);
-    redisConnection((client, redlock) => {
-        // lock the message in case other instance is warming up
-        redlock.lock('lock:' + res.uuid, 1000).then(function (lock) {
-            console.log(res.message);
-            client.zrem(_key, key);
-            return lock.unlock()
-                .catch(function (err) {
-                    console.error(err);
-                }).then(() => { client.quit() })
-        });
 
+    // lock the message in case other instance is warming up
+    _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
+        console.log(res.message);
+        _redisClient.zrem(_key, key);
+        return lock.unlock()
+            .catch(function (err) {
+                console.error(err);
+            });
     });
 }
 
@@ -175,53 +177,47 @@ app.listen(port, function () {
     //"check later" subscriber will keep checking if there is a message with the current timestamp (+500 milli)
     // if there are messages to print it will try to lock them, remove them from the ZLIST, add them tho the worker queue and publish an event
     // for the worker to print the message
-    var CheckLaterSubscriber = redis.createClient(_redisPort, _redisHost);
-    CheckLaterSubscriber.subscribe(_checkLaterQueue);
+    _checkLaterSubscriber.subscribe(_checkLaterQueue);
 
-    CheckLaterSubscriber.on('message', function (channel, message) {
-        redisConnection((client, locker) => {
-            client.zrangebyscore(_key, Date.now(), Date.now() + 500, 'withscores', function (err, members) {
-                var chunck = _.chunk(members, 2);
-                chunck.forEach(element => {
-                    var res = JSON.parse(element[0]);
-                    // lock the message by uuid so no other service will be able to use it
-                    // if the lock can't be acquired it means that other instance already got it and will send it to the worker queue
-                    locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                        client.lpush(_messageToSendQueue, element[0]);
-                        publishMessage(_notificationQueue, 1);
-                        client.zrem(_key, element[0]);
-                        return lock.unlock()
-                            .catch(function (err) {
-                            }).then(() => { client.quit() })
-                    });
+    _checkLaterSubscriber.on('message', function (channel, message) {
+
+        _redisClient.zrangebyscore(_key, Date.now(), Date.now() + 500, 'withscores', function (err, members) {
+            var chunck = _.chunk(members, 2);
+            chunck.forEach(element => {
+                var res = JSON.parse(element[0]);
+                // lock the message by uuid so no other service will be able to use it
+                // if the lock can't be acquired it means that other instance already got it and will send it to the worker queue
+                _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
+                    _redisClient.lpush(_messageToSendQueue, element[0]);
+                    publishMessage(_notificationQueue, 1);
+                    _redisClient.zrem(_key, element[0]);
+                    return lock.unlock()
+                        .catch(function (err) {
+                        });
                 });
             });
-
-        })
+        });
         // in any case - repopulate the queue for next iteration
         publishMessage(_checkLaterQueue, 1);
 
     });
 
     //notifcation subscriber will get notification to pop a message from the "messages_to_send" queue , will try to lock it and print the message to the console
-    var notificationsSubscriber = redis.createClient(_redisPort, _redisHost);
-    notificationsSubscriber.subscribe(_notificationQueue);
+    _notificationsSubscriber.subscribe(_notificationQueue);
 
-    notificationsSubscriber.on('message', function (channel, message) {
-        redisConnection((client, locker, scheduler) => {
-            //poping the first message in the queue
-            client.lpop([_messageToSendQueue], function (err, reply) {
-                if (reply != null) {
-                    var res = JSON.parse(reply);
-                    //try to accuire lock
-                    locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                        console.log(res.message);
-                        return lock.unlock()
-                            .catch(function (err) {
-                            }).then(() => { client.quit() })
-                    });
-                }
-            });
+    _notificationsSubscriber.on('message', function (channel, message) {
+        //poping the first message in the queue
+        _redisClient.lpop([_messageToSendQueue], function (err, reply) {
+            if (reply != null) {
+                var res = JSON.parse(reply);
+                //try to accuire lock
+                _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
+                    console.log(res.message);
+                    return lock.unlock()
+                        .catch(function (err) {
+                        });
+                });
+            }
         });
     });
 
@@ -229,25 +225,23 @@ app.listen(port, function () {
     publishMessage(_checkLaterQueue, 1);
 
     // check if there are messages in the queue that were not printed on time because the server was down
-    redisConnection((client, locker) => {
-        // get all messages that are still availble in the queue that should've been sent by now
-        // when all goes well this query should return 0 results as 
-        // 1. there are messages in the queue but they will be sent in later time
-        // 2. other instances already proceesed the messages on time
-        client.zrangebyscore(_key, -1, now, 'withscores', function (err, members) {
-            var chunck = _.chunk(members, 2);
-            chunck.forEach(element => {
-                var res = JSON.parse(element[0]);
-                // lock the message by uuid so no other service will be able to use it
-                // if the lock can't be acquired it means that other instance already got it and will print it
-                locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                    console.log(res.message);
-                    client.zrem(_key, element[0]);
-                    return lock.unlock()
-                        .catch(function (err) {
-                            console.error(err);
-                        }).then(() => { client.quit() })
-                });
+    // get all messages that are still availble in the queue that should've been sent by now
+    // when all goes well this query should return 0 results as 
+    // 1. there are messages in the queue but they will be sent in later time
+    // 2. other instances already proceesed the messages on time
+    _redisClient.zrangebyscore(_key, -1, now, 'withscores', function (err, members) {
+        var chunck = _.chunk(members, 2);
+        chunck.forEach(element => {
+            var res = JSON.parse(element[0]);
+            // lock the message by uuid so no other service will be able to use it
+            // if the lock can't be acquired it means that other instance already got it and will print it
+            _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
+                console.log(res.message);
+                _redisClient.zrem(_key, element[0]);
+                return lock.unlock()
+                    .catch(function (err) {
+                        console.error(err);
+                    });
             });
         });
     });
@@ -259,21 +253,3 @@ function publishMessage(queueName, msg) {
     publisher.publish(queueName, msg);
     publisher.quit();
 }
-
-//helper function for redis connection 
-function redisConnection(redisFunction) {
-    var client = redis.createClient(_redisPort, _redisHost);
-    var redlock = new Redlock([client]);
-    var scheduler = new Scheduler({ host: _redisHost, port: _redisPort });
-    redlock.on('clientError', function (err) {
-        console.error('A redis error has occurred:', err);
-    });
-    try {
-        redisFunction(client, redlock, scheduler);
-    } catch (err) {
-        console.log(err.toString());
-    } finally {
-
-    }
-}
-
