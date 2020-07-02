@@ -84,7 +84,7 @@ var jsonParser = bodyParser.json()
  *                 type: string
  *                 required: true
  *                 example: "Hello World"
- *               time:
+ *               date:
  *                  type: date
  *                  required: true
  *                  format: "MM-dd-yyyy HH:mm:ss"
@@ -99,19 +99,34 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
-        res.status(400).send();
+        res.status(400);
+        res.end();
     } else {
         try {
             var uuid = uuidv1();
-            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
-            _redisClient.zadd(_key, requestedDate, json);
+            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time:  res.body.date });
+            _redisClient.zadd(_key, requestedDate, json, function (err) {
+                if (err) {
+                    console.log(err);
+                    res.status(400);
+                    res.end();
+                }
+            });
             //add expersion event 
             _scheduler.schedule({ key: json, expire: requestedDate - Date.now(), handler: eventTriggered }, function (err) {
+                if (err) {
+                    console.log(err);
+                    res.status(400);
+                    res.end();
+                }
             });
-            res.status(201).send('Event was added for, ' + requestedDate);
-        } catch (error) {
-            res.status(400).send(error);
+        } catch (err) {
+            console.log(err);
+            res.status(400);
+            res.end();
         }
+        res.status(201).send();
+        res.end();
     }
 });
 
@@ -136,7 +151,7 @@ app.post('/api/v1/echoAtTime', jsonParser, function (req, res) {
  *                 type: string
  *                 required: true
  *                 example: "Hello World"
- *               time:
+ *               date:
  *                  type: date
  *                  required: true
  *                  format: "MM-dd-yyyy HH:mm:ss"
@@ -151,17 +166,27 @@ app.post('/api/v2/echoAtTime', jsonParser, function (req, res) {
     var requestedDate = new Date(req.body.date).getTime();
     // validate that the given date is in the future - if not return 400
     if (requestedDate < Date.now()) {
-        res.status(400).send();
+        res.status(400);
+        res.end();
     } else {
         try {
             var uuid = uuidv1();
-            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: requestedDate });
-            _redisClient.zadd(_key, requestedDate, json);
-            res.status(201).send('Event was added for, ' + requestedDate)
-        } catch (error) {
-            res.status(400).send(error);
+            var json = JSON.stringify({ message: req.body.message, uuid: uuid, time: req.body.date });
+            _redisClient.zadd(_key, requestedDate, json, function (err) {
+                if (err) {
+                    console.log(err);
+                    res.status(400);
+                    res.end();
+                }
+            });
+        } catch (err) {
+            console.log(err);
+            res.status(400);
+            res.end();
         }
-}
+        res.status(201).send();
+        res.end();
+    }
 });
 
 function eventTriggered(err, key) {
@@ -169,7 +194,7 @@ function eventTriggered(err, key) {
 
     // lock the message in case other instance is warming up
     _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-        console.log(res.message);
+        console.log(res.message+" "+res.time);
         _redisClient.zrem(_key, key);
         return lock.unlock()
             .catch(function (err) {
@@ -219,7 +244,7 @@ app.listen(port, function () {
                 var res = JSON.parse(reply);
                 //try to accuire lock
                 _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                    console.log(res.message);
+                    console.log(res.message+" "+res.time);
                     return lock.unlock()
                         .catch(function (err) {
                         });
@@ -243,7 +268,7 @@ app.listen(port, function () {
             // lock the message by uuid so no other service will be able to use it
             // if the lock can't be acquired it means that other instance already got it and will print it
             _locker.lock('lock:' + res.uuid, 1000).then(function (lock) {
-                console.log(res.message);
+                console.log(res.message+" "+res.time);
                 _redisClient.zrem(_key, element[0]);
                 return lock.unlock()
                     .catch(function (err) {
