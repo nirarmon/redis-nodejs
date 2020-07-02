@@ -52,13 +52,11 @@ For events driven the *keyspace event notification* should be set as follow on R
 please note: keyspace event notification has some overhead on Redis so it is disabled as default
 
     ./redis-server --notify-keyspace-events Ex
-or
+or from redis cli
 
     redis-cli config set notify-keyspace-events Ex
-or
-
-Add line  **_notify-keyspace-events Ex in_** _redis.conf_
-Example: 
+or add line  **_notify-keyspace-events Ex in_** _redis.conf_
+Example of docker use with custom configuration file: 
 
     docker run --name my-redis-container -v /data/myredis/redis.conf:/usr/local/etc/redis/redis.conf -d redis 
 
@@ -87,13 +85,34 @@ node app
 ```
 
 ### Documentation
-you can see the Service's API calls here:
-[http://localhost:3000/docs](http://localhost:3000/docs)
+The service has two API calls:
+#### /api/v1/echoAtTime
+This API call will use events to print the messages -use it only when event notifications are enabled
+example of use:
+
+    curl -X POST \
+      http://localhost:3000/api/v1/echoAtTime \
+      -H 'cache-control: no-cache' \
+      -H 'content-type: application/json' \
+      -d '{"message":"Some Message","date":"07-02-2020 16:40:00"}'
+#### /api/v2/echoAtTime
+This API call will use pulling to print the messages
+example of use:
+
+    curl -X POST \
+      http://localhost:3000/api/v2/echoAtTime \
+      -H 'cache-control: no-cache' \
+      -H 'content-type: application/json' \
+      -d '{"message":"Some Message","date":"07-02-2020 16:40:00"}'
+
+both API calls will not allow messages in past time
+After running the service you can see the Service's API calls here:
+[http://localhost:3000/doc](http://localhost:3000/doc)
 
 ### Known Issues (AKA things I should've done better)
 
  - The services is based on "Spaghetti Code" design pattern, i should've module the folders and files better
- - Redis connections- I might have handle Redis connection better, I used a single function to connect to Redis each time it was needed, but I'm not sure I closed all the connections properly 
+ - Redis connections- I might have handle Redis connection better, I used a single connection for each use, but  I'm not sure I closed all the connections properly 
  - **TESTING!** 
 ### Blogs and Repositories 
  - [Redis keyspace event notification](http://blog.codezuki.com/blog/2013/07/07/redis-queue)
