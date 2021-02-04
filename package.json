@@ -24,7 +24,7 @@
     "save": "^2.4.0",
     "swagger-jsdoc": "^4.0.0",
     "underscore": "^1.10.2",
-    "uuid": "^8.2.0"
+    "uuid": "^8.3.2"
   },
   "devDependencies": {},
   "description": ""
