@@ -23,7 +23,7 @@
     "redoc-express": "^1.0.0",
     "save": "^2.4.0",
     "swagger-jsdoc": "^4.0.0",
-    "underscore": "^1.10.2",
+    "underscore": "^1.12.1",
     "uuid": "^8.2.0"
   },
   "devDependencies": {},
