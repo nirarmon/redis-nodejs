@@ -21,7 +21,7 @@
     "redlock": "^4.1.0",
     "redoc": "^2.0.0-rc.31",
     "redoc-express": "^1.0.0",
-    "save": "^2.4.0",
+    "save": "^2.5.0",
     "swagger-jsdoc": "^4.0.0",
     "underscore": "^1.10.2",
     "uuid": "^8.2.0"
