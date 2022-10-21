@@ -19,7 +19,7 @@
     "redis-cli": "^1.4.0",
     "redis-scheduler": "^1.0.0",
     "redlock": "^4.1.0",
-    "redoc": "^2.0.0-rc.31",
+    "redoc": "^2.0.0",
     "redoc-express": "^1.0.0",
     "save": "^2.4.0",
     "swagger-jsdoc": "^4.0.0",
